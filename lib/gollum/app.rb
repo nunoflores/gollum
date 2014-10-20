@@ -95,6 +95,11 @@ module Precious
       @js  = settings.wiki_options[:js]
     end
 
+    get '/updateGitRepo' do
+      output = `cd ../weaki; git pull origin master`
+      p output
+    end
+
     get '/admin' do
       db = SQLite3::Database.open "weaki_v2.db"
       # @result = db.execute "SELECT DISTINCT Users.email, Roles.type FROM Users INNER JOIN UsersRoles ON Users.email=UsersRoles.email INNER JOIN Roles ON UsersRoles.type=Roles.type;"

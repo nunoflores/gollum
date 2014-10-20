@@ -50,10 +50,27 @@
 
   <title>{{title}}</title>
 </head>
+<script type="text/javascript">
+function surroundSelection() {
+  var span = document.createElement("span");
+  span.style.background="#ffb7b7";
+    if (window.getSelection) {
+        var sel = window.getSelection();
+        if (sel.rangeCount) {
+            var range = sel.getRangeAt(0).cloneRange();
+            range.surroundContents(span);
+            sel.removeAllRanges();
+            sel.addRange(range);
+        }
+    }
+}
+</script>
 <body>
+  <div id="highlight-menu"><a class="minibutton" href="javascript:void(0)" onclick="surroundSelection();">Highlight</a></div>
 {{< user}}
 
 {{{yield}}}
 
 </body>
+<script type="text/javascript" src="{{base_url}}/javascript/spike.js"></script>
 </html>
