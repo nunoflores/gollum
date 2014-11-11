@@ -101,13 +101,13 @@ module Precious
     end
 
     get '/admin' do
-      db = SQLite3::Database.open "weaki_v2.db"
+      # db = SQLite3::Database.open dbfile
       # @result = db.execute "SELECT DISTINCT Users.email, Roles.type FROM Users INNER JOIN UsersRoles ON Users.email=UsersRoles.email INNER JOIN Roles ON UsersRoles.type=Roles.type;"
       # p @result
       # @result = @result.first
       @users = get_users_from_db
       @roles = get_roles_from_db
-      db.close
+      # db.close
       mustache :admin_page
     end
 
@@ -593,35 +593,40 @@ module Precious
     end
 
     def get_users_from_db
-      db = SQLite3::Database.open "weaki_v2.db"
+      file = settings.wiki_options[:dbfile].to_s
+      db = SQLite3::Database.open file
       results = db.execute "select Users.email from Users;"
       db.close
       return results
     end
 
     def get_permissions_of_user(email)
-      db = SQLite3::Database.open "weaki_v2.db"
+      file = settings.wiki_options[:dbfile].to_s
+      db = SQLite3::Database.open file
       results = db.execute "select Roles.name, Roles.regex, Roles.crud from Users INNER JOIN UsersRoles ON Users.email=UsersRoles.email INNER JOIN Roles ON UsersRoles.role=Roles.name WHERE Users.email = ? ;", email
       db.close
       return results
     end
 
     def get_user_roles(email)
-      db = SQLite3::Database.open "weaki_v2.db"
+      file = settings.wiki_options[:dbfile].to_s
+      db = SQLite3::Database.open file
       results = db.execute "select UsersRoles.role from Users inner join UsersRoles on Users.email=UsersRoles.email where Users.email = ?", email
       db.close
       return results
     end
 
     def get_roles_from_db
-      db = SQLite3::Database.open "weaki_v2.db"
+      file = settings.wiki_options[:dbfile].to_s
+      db = SQLite3::Database.open file
       results = db.execute "select distinct Roles.name from Roles;"
       db.close
       return results
     end
 
     def get_role_permissions(role)
-      db = SQLite3::Database.open "weaki_v2.db"
+      file = settings.wiki_options[:dbfile].to_s
+      db = SQLite3::Database.open file
       db.results_as_hash = true
       results = db.execute "select Roles. id, Roles.regex, Roles.crud from Roles where Roles.name = ?", role
       db.close
@@ -630,7 +635,8 @@ module Precious
 
     def add_email_to_db(email)
       begin
-        db = SQLite3::Database.open "weaki_v2.db"
+        file = settings.wiki_options[:dbfile].to_s
+      db = SQLite3::Database.open file
         db.execute "insert into Users values(?);", email
       rescue SQLite3::Exception => e
         puts "Error adding email #{email}"
@@ -642,7 +648,8 @@ module Precious
 
     def remove_perms_by_id(id)
       begin
-        db = SQLite3::Database.open "weaki_v2.db"
+        file = settings.wiki_options[:dbfile].to_s
+      db = SQLite3::Database.open file
         db.execute "delete from Roles where Roles.id = ?", id
       rescue SQLite3::Exception => e
         p e
@@ -653,7 +660,8 @@ module Precious
 
     def add_perms_to_role(role, regex, crud)
       begin
-        db = SQLite3::Database.open "weaki_v2.db"
+        file = settings.wiki_options[:dbfile].to_s
+      db = SQLite3::Database.open file
         stm = db.prepare "insert into Roles values (NULL, ?, ?, ?)"
         stm.bind_params role, regex, crud
         stm.execute
@@ -667,7 +675,8 @@ module Precious
 
     def delete_user(user)
       begin
-        db = SQLite3::Database.open "weaki_v2.db"
+        file = settings.wiki_options[:dbfile].to_s
+      db = SQLite3::Database.open file
         stm = db.prepare "delete from Users where email = :user"
         stm.execute user
         stm2 = db.prepare "delete from UsersRoles where email = :user"
@@ -684,7 +693,8 @@ module Precious
 
     def add_role_to_user(user, role)
       begin
-        db = SQLite3::Database.open "weaki_v2.db"
+        file = settings.wiki_options[:dbfile].to_s
+      db = SQLite3::Database.open file
         stm = db.prepare "insert into UsersRoles values(?,?)"
         stm.bind_params user, role
         stm.execute
@@ -699,7 +709,8 @@ module Precious
 
     def remove_role_from_user(user, role)
       begin
-        db = SQLite3::Database.open "weaki_v2.db"
+        file = settings.wiki_options[:dbfile].to_s
+      db = SQLite3::Database.open file
         stm = db.prepare "delete from UsersRoles where email = ? and role = ?"
         stm.bind_params user, role
         stm.execute
