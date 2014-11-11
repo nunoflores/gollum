@@ -7,7 +7,7 @@ Mousetrap.bind(['e'], function( e ) {
 </script>
 <div id="wiki-wrapper" class="page">
 <div id="head">
-  <h1>{{page_header}}</h1>
+  <h1>{{page_header}} {{^editable}}(Old version){{/editable}}</h1>
   <ul class="actions">
     <li class="minibutton">
       {{>searchbar}}
@@ -39,7 +39,8 @@ Mousetrap.bind(['e'], function( e ) {
   </ul>
 </div>
 <div id="wiki-content">
-<div class="{{#has_header}}has-header{{/has_header}}{{#has_footer}} has-footer{{/has_footer}}{{#has_sidebar}} has-sidebar has-{{bar_side}}bar{{/has_sidebar}}{{#has_toc}} has-toc{{/has_toc}}">
+<!-- div class="{{#has_header}}has-header{{/has_header}}{{#has_footer}} has-footer{{/has_footer}}{{#has_sidebar}} has-sidebar has-{{bar_side}}bar{{/has_sidebar}}{{#has_toc}} has-toc{{/has_toc}}"-->
+<div class="{{#has_header}}has-header{{/has_header}}{{#has_footer}} has-footer{{/has_footer}} has-sidebar has-rightbar{{#has_toc}} has-toc{{/has_toc}}">
   {{#has_toc}}
   <div id="wiki-toc-main">
     {{{toc_content}}}
@@ -52,6 +53,9 @@ Mousetrap.bind(['e'], function( e ) {
     </div>
   </div>
   {{/has_sidebar}}
+  <!-- Comments section -->
+  {{{comments}}}
+  <!-- End of comments section -->
   <div id="wiki-body" class="gollum-{{format}}-content">
     {{#has_header}}
     <div id="wiki-header" class="gollum-{{header_format}}-content">

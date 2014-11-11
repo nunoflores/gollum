@@ -110,6 +110,10 @@ module Precious
         @mathjax
       end
 
+      def comments
+        @comments
+      end
+
       def use_identicon
         @page.wiki.user_icons == 'identicon'
       end

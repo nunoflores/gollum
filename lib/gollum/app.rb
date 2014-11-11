@@ -546,6 +546,13 @@ module Precious
         @bar_side      = wiki.bar_side
         @allow_uploads = wiki.allow_uploads
 
+        # Comments section
+        # db = SQLite3::Database.open "weaki_v2.db"
+        # results = db.execute "select * from Comments;"
+        # results = results[0]
+        # db.close
+        @comments = "<div id=\"wiki-sidebar\" class=\"gollum-markdown-content\"><div id=\"sidebar-content\" class=\"markdown-body\"><span id=\"test-comment\">Teste</span><br><button id=\"hide-comments\">Hide</button></div></div>"
+
         mustache :page
       elsif file = wiki.file(fullpath, wiki.ref, true)
         if file.on_disk?

@@ -6,4 +6,5 @@ Gemfile.lock
 *.gem
 *.swp
 .*
-
+*.db
+*.bak
