@@ -6,6 +6,7 @@ require 'mustache/sinatra'
 require 'useragent'
 require 'stringex'
 require 'sqlite3'
+require 'date'
 
 require 'gollum'
 require 'gollum/views/layout'
@@ -52,9 +53,9 @@ module Precious
     Browser = Struct.new(:browser, :version)
 
     @@min_ua = [
-        Browser.new('Internet Explorer', '10.0'),
-        Browser.new('Chrome', '7.0'),
-        Browser.new('Firefox', '4.0'),
+      Browser.new('Internet Explorer', '10.0'),
+      Browser.new('Chrome', '7.0'),
+      Browser.new('Firefox', '4.0'),
     ]
 
     def supported_useragent?(user_agent)
@@ -67,14 +68,14 @@ module Precious
     set :static, true
     set :default_markup, :markdown
     set :mustache, {
-        # Tell mustache where the Views constant lives
-        :namespace => Precious,
+      # Tell mustache where the Views constant lives
+      :namespace => Precious,
 
-        # Mustache templates live here
-        :templates => "#{dir}/templates",
+      # Mustache templates live here
+      :templates => "#{dir}/templates",
 
-        # Tell mustache where the views are
-        :views     => "#{dir}/views"
+      # Tell mustache where the views are
+      :views     => "#{dir}/views"
     }
 
     # Sinatra error handling
@@ -158,6 +159,48 @@ module Precious
       # redirect '/'
     end
 
+    post '/insert_comment' do
+      author = session[:omniauth_user].nickname
+      if params[:parent_id].nil?
+        parent = nil
+      else
+        parent = params[:parent_id]
+      end
+      date = Time.now.strftime("%d/%m/%Y %H:%M").to_s
+      content = params[:comment_textarea]
+      page_url = params[:page_url]
+      if params[:inline].nil?
+        inline = 0
+        section = nil
+      else
+        inline = 1
+        section = params[:section]
+      end
+      # puts "----------"
+      # puts author
+      # puts date
+      # puts content
+      # puts parent
+      # puts page_url
+      # puts inline
+      # puts section
+      # puts "----------"
+      add_comment(author, date, content, parent, page_url, inline, section)
+
+      redirect "/#{page_url}"
+    end
+
+    get '/delete-comment/*' do
+      comment_id = params[:splat].first
+      comment_author = get_comment_author(comment_id).first
+      if(session[:omniauth_user].nickname == comment_author || is_user_admin?(session[:omniauth_user].nickname))
+        delete_comment(comment_id)
+        redirect "/Home" # TO-DO redirect to the page where the comment was
+      else
+        "You don't have permission to delete this comment"
+      end
+    end
+
     get '/' do
       page_dir = settings.wiki_options[:page_file_dir].to_s
       redirect clean_url(::File.join(@base_url, page_dir, wiki_new.index_page))
@@ -238,8 +281,8 @@ module Precious
       head = wiki.repo.head
 
       options = {
-          :message => "Uploaded file to #{dir}/#{reponame}",
-          :parent  => wiki.repo.head.commit,
+        :message => "Uploaded file to #{dir}/#{reponame}",
+        :parent  => wiki.repo.head.commit,
       }
       author  = session['gollum.author']
       unless author.nil?
@@ -259,6 +302,8 @@ module Precious
         @message = "Duplicate page: #{e.message}"
         mustache :error
       end
+
+      `cd ../weaki; git push origin master`
     end
 
     post '/rename/*' do
@@ -291,6 +336,8 @@ module Precious
       end
       committer.commit
 
+      `cd ../weaki; git push origin master`
+
       wikip = wiki_page(rename)
       page  = wiki.paged(wikip.name, wikip.path, exact = true)
       return if page.nil?
@@ -306,11 +353,17 @@ module Precious
       committer = Gollum::Committer.new(wiki, commit_message)
       commit    = { :committer => committer }
 
+      comments = get_comments_from_page page
+
+      save_comments_from_version page, comments
+
       update_wiki_page(wiki, page, params[:content], commit, page.name, params[:format])
       update_wiki_page(wiki, page.header, params[:header], commit) if params[:header]
       update_wiki_page(wiki, page.footer, params[:footer], commit) if params[:footer]
       update_wiki_page(wiki, page.sidebar, params[:sidebar], commit) if params[:sidebar]
       committer.commit
+
+      `cd ../weaki; git push origin master`
 
       redirect to("/#{page.escaped_url_path}") unless page.nil?
     end
@@ -323,7 +376,7 @@ module Precious
       unless page.nil?
         wiki.delete_page(page, { :message => "Destroyed #{name} (#{page.format})" })
       end
-
+      `cd ../weaki; git push origin master`
       redirect to('/')
     end
 
@@ -367,6 +420,7 @@ module Precious
         @message = "Duplicate page: #{e.message}"
         mustache :error
       end
+      `cd ../weaki; git push origin master`
     end
 
     post '/revert/*/:sha1/:sha2' do
@@ -390,6 +444,7 @@ module Precious
         @message   = "The patch does not apply."
         mustache :compare
       end
+      `cd ../weaki; git push origin master`
     end
 
     post '/preview' do
@@ -402,10 +457,13 @@ module Precious
       @h1_title      = wiki.h1_title
       @editable      = false
       @allow_uploads = wiki.allow_uploads
+
+      @has_comments = false
       mustache :page
     end
 
     get '/history_all' do
+      `cd ../weaki; git pull origin master`
       wiki = wiki_new
       pages = wiki.pages
       @versions = Array.new
@@ -420,6 +478,7 @@ module Precious
     end
 
     get '/history/*' do
+      `cd ../weaki; git pull origin master`
       @page     = wiki_page(params[:splat].first).page
       @page_num = [params[:page].to_i, 1].max
       unless @page.nil?
@@ -437,10 +496,10 @@ module Precious
         redirect to("/history/#{@file}")
       else
         redirect to("/compare/%s/%s...%s" % [
-            @file,
-            @versions.last,
-            @versions.first]
-                 )
+                      @file,
+                      @versions.last,
+                    @versions.first]
+                    )
       end
     end
 
@@ -464,6 +523,7 @@ module Precious
     end
 
     get %r{/(.+?)/([0-9a-f]{40})} do
+      `cd ../weaki; git pull origin master`
       file_path = params[:captures][0]
       version   = params[:captures][1]
       wikip     = wiki_page(file_path, file_path, version)
@@ -474,6 +534,27 @@ module Precious
         @name    = name
         @content = page.formatted_data
         @version = version
+
+        # When rendering older versions of a page, we do not show comments for now
+        @old_comments = get_comments_from_version page.url_path, version
+        if !@old_comments.empty?
+          @old_comments = @old_comments.first.split ","
+          @old_comments.map! {|c| c.to_i }
+        else
+          @old_comments = Array.new
+        end
+        @comments = fetch_comments page.url_path
+        @has_comments = false
+        @old_version = true
+
+        sections = get_sections_commented page.escaped_url_path
+        @sections = Array.new
+
+        tmp_fragment = Nokogiri::HTML.fragment(@content)
+        tmp_fragment.css('span.weaki-section').each{|section|
+          section_id = section.attribute('id').value
+          @sections.push section_id
+        }
         mustache :page
       else
         halt 404
@@ -505,6 +586,7 @@ module Precious
     end
 
     get '/fileview' do
+      `cd ../weaki; git pull origin master`
       wiki     = wiki_new
       options  = settings.wiki_options
       content  = wiki.pages
@@ -523,6 +605,7 @@ module Precious
     end
 
     def show_page_or_file(fullpath)
+      `cd ../weaki; git pull origin master`
       wiki = wiki_new
 
       name = extract_name(fullpath) || wiki.index_page
@@ -535,25 +618,41 @@ module Precious
         @upload_dest   = settings.wiki_options[:allow_uploads] ?
             (settings.wiki_options[:per_page_uploads] ?
                 "#{path}/#{@name}".sub(/^\/\//, '') : 'uploads'
-            ) : ''
+      ) : ''
 
-        # Extensions and layout data
-        @editable      = true
-        @page_exists   = !page.versions.empty?
-        @toc_content   = wiki.universal_toc ? @page.toc_data : nil
-        @mathjax       = wiki.mathjax
-        @h1_title      = wiki.h1_title
-        @bar_side      = wiki.bar_side
-        @allow_uploads = wiki.allow_uploads
+      # Extensions and layout data
+      @editable      = true
+      @page_exists   = !page.versions.empty?
+      @toc_content   = wiki.universal_toc ? @page.toc_data : nil
+      @mathjax       = wiki.mathjax
+      @h1_title      = wiki.h1_title
+      @bar_side      = wiki.bar_side
+      @allow_uploads = wiki.allow_uploads
 
-        # Comments section
-        # db = SQLite3::Database.open "weaki_v2.db"
-        # results = db.execute "select * from Comments;"
-        # results = results[0]
-        # db.close
-        @comments = "<div id=\"wiki-sidebar\" class=\"gollum-markdown-content\"><div id=\"sidebar-content\" class=\"markdown-body\"><span id=\"test-comment\">Teste</span><br><button id=\"hide-comments\">Hide</button></div></div>"
+      # Comments section
+      # db = SQLite3::Database.open "weaki_v2.db"
+      # results = db.execute "select * from Comments;"
+      # results = results[0]
+      # db.close
+      # @comments = "<div id=\"wiki-sidebar\" class=\"gollum-markdown-content\"><div id=\"sidebar-content\" class=\"markdown-body\"><span id=\"test-comment\">Teste</span><br><button id=\"hide-comments\">Hide</button></div></div>"
+      @has_comments = true
+      @session_username = session[:omniauth_user].nickname
+      @comments = fetch_comments @page.url_path
+      sections = get_sections_commented page.escaped_url_path
+      @sections = Array.new
+      # sections.each {|s|
+      #   @sections_commented.push s.first unless s.first.nil?
+      # }
 
-        mustache :page
+      tmp_fragment = Nokogiri::HTML.fragment(@content)
+      tmp_fragment.css('span.weaki-section').each{|section|
+        section_id = section.attribute('id').value
+        @sections.push section_id
+      }
+
+      @is_admin = is_user_admin? @session_username
+
+      mustache :page
       elsif file = wiki.file(fullpath, wiki.ref, true)
         if file.on_disk?
           send_file file.on_disk_path, :disposition => 'inline'
@@ -565,161 +664,293 @@ module Precious
         page_path = [path, name].compact.join('/')
         redirect to("/create/#{clean_url(encodeURIComponent(page_path))}")
       end
-    end
+      end
 
-    def update_wiki_page(wiki, page, content, commit, name = nil, format = nil)
-      return if !page ||
+      def update_wiki_page(wiki, page, content, commit, name = nil, format = nil)
+        return if !page ||
           ((!content || page.raw_data == content) && page.format == format)
-      name    ||= page.name
-      format  = (format || page.format).to_sym
-      content ||= page.raw_data
-      wiki.update_page(page, name, format, content.to_s, commit)
-    end
-
-    private
-
-    # Options parameter to Gollum::Committer#initialize
-    #     :message   - The String commit message.
-    #     :name      - The String author full name.
-    #     :email     - The String email address.
-    # message is sourced from the incoming request parameters
-    # author details are sourced from the session, to be populated by rack middleware ahead of us
-    def commit_message
-      msg               = (params[:message].nil? or params[:message].empty?) ? "[no message]" : params[:message]
-      commit_message    = { :message => msg }
-      author_parameters = session['gollum.author']
-      commit_message.merge! author_parameters unless author_parameters.nil?
-      commit_message
-    end
-
-    def get_users_from_db
-      file = settings.wiki_options[:dbfile].to_s
-      db = SQLite3::Database.open file
-      results = db.execute "select Users.email from Users;"
-      db.close
-      return results
-    end
-
-    def get_permissions_of_user(email)
-      file = settings.wiki_options[:dbfile].to_s
-      db = SQLite3::Database.open file
-      results = db.execute "select Roles.name, Roles.regex, Roles.crud from Users INNER JOIN UsersRoles ON Users.email=UsersRoles.email INNER JOIN Roles ON UsersRoles.role=Roles.name WHERE Users.email = ? ;", email
-      db.close
-      return results
-    end
-
-    def get_user_roles(email)
-      file = settings.wiki_options[:dbfile].to_s
-      db = SQLite3::Database.open file
-      results = db.execute "select UsersRoles.role from Users inner join UsersRoles on Users.email=UsersRoles.email where Users.email = ?", email
-      db.close
-      return results
-    end
-
-    def get_roles_from_db
-      file = settings.wiki_options[:dbfile].to_s
-      db = SQLite3::Database.open file
-      results = db.execute "select distinct Roles.name from Roles;"
-      db.close
-      return results
-    end
-
-    def get_role_permissions(role)
-      file = settings.wiki_options[:dbfile].to_s
-      db = SQLite3::Database.open file
-      db.results_as_hash = true
-      results = db.execute "select Roles. id, Roles.regex, Roles.crud from Roles where Roles.name = ?", role
-      db.close
-      return results
-    end
-
-    def add_email_to_db(email)
-      begin
-        file = settings.wiki_options[:dbfile].to_s
-      db = SQLite3::Database.open file
-        db.execute "insert into Users values(?);", email
-      rescue SQLite3::Exception => e
-        puts "Error adding email #{email}"
-        p e
-      ensure
-        db.close if db
+        name    ||= page.name
+        format  = (format || page.format).to_sym
+        content ||= page.raw_data
+        wiki.update_page(page, name, format, content.to_s, commit)
       end
-    end
 
-    def remove_perms_by_id(id)
-      begin
-        file = settings.wiki_options[:dbfile].to_s
-      db = SQLite3::Database.open file
-        db.execute "delete from Roles where Roles.id = ?", id
-      rescue SQLite3::Exception => e
-        p e
-      ensure
-        db.close if db
-      end
-    end
+      private
 
-    def add_perms_to_role(role, regex, crud)
-      begin
-        file = settings.wiki_options[:dbfile].to_s
-      db = SQLite3::Database.open file
-        stm = db.prepare "insert into Roles values (NULL, ?, ?, ?)"
-        stm.bind_params role, regex, crud
-        stm.execute
-      rescue SQLite3::Exception => e
-        @message = "Error adding permissions to role #{role}: #{e.message}"
-      ensure
-        stm.close if stm
-        db.close if db
+      # Options parameter to Gollum::Committer#initialize
+      #     :message   - The String commit message.
+      #     :name      - The String author full name.
+      #     :email     - The String email address.
+      # message is sourced from the incoming request parameters
+      # author details are sourced from the session, to be populated by rack middleware ahead of us
+      def commit_message
+        msg               = (params[:message].nil? or params[:message].empty?) ? "[no message]" : params[:message]
+        commit_message    = { :message => msg }
+        author_parameters = session['gollum.author']
+        commit_message.merge! author_parameters unless author_parameters.nil?
+        commit_message
       end
-    end
 
-    def delete_user(user)
-      begin
+      def get_users_from_db
         file = settings.wiki_options[:dbfile].to_s
-      db = SQLite3::Database.open file
-        stm = db.prepare "delete from Users where email = :user"
-        stm.execute user
-        stm2 = db.prepare "delete from UsersRoles where email = :user"
-        stm2.execute user
-      rescue SQLite3::Exception => e
-        @message = "Error deleting user #{user}: #{e.message}"
-        mustache :error
-      ensure
-        stm.close if stm
-        stm2.close if stm
-        db.close if db
+        db = SQLite3::Database.open file
+        results = db.execute "select Users.email from Users;"
+        db.close
+        return results
       end
-    end
 
-    def add_role_to_user(user, role)
-      begin
+      def get_permissions_of_user(email)
         file = settings.wiki_options[:dbfile].to_s
-      db = SQLite3::Database.open file
-        stm = db.prepare "insert into UsersRoles values(?,?)"
-        stm.bind_params user, role
-        stm.execute
-      rescue SQLite3::Exception => e
-        @message = "Error adding role to #{user}: #{e.message}"
-        mustache :error
-      ensure
-        stm.close if stm
-        db.close if db
+        db = SQLite3::Database.open file
+        results = db.execute "select Roles.name, Roles.regex, Roles.crud from Users INNER JOIN UsersRoles ON Users.email=UsersRoles.email INNER JOIN Roles ON UsersRoles.role=Roles.name WHERE Users.email = ? ;", email
+        db.close
+        return results
       end
-    end
 
-    def remove_role_from_user(user, role)
-      begin
+      def get_user_roles(email)
         file = settings.wiki_options[:dbfile].to_s
-      db = SQLite3::Database.open file
-        stm = db.prepare "delete from UsersRoles where email = ? and role = ?"
-        stm.bind_params user, role
-        stm.execute
-      rescue SQLite3::Exception => e
-        @message = "Error removing role from user #{user}: #{e.message}"
-      ensure
-        stm.close if stm
-        db.close if db
+        db = SQLite3::Database.open file
+        results = db.execute "select UsersRoles.role from Users inner join UsersRoles on Users.email=UsersRoles.email where Users.email = ?", email
+        db.close
+        return results
       end
-    end
-  end
-end
+
+      def get_roles_from_db
+        file = settings.wiki_options[:dbfile].to_s
+        db = SQLite3::Database.open file
+        results = db.execute "select distinct Roles.name from Roles;"
+        db.close
+        return results
+      end
+
+      def get_role_permissions(role)
+        file = settings.wiki_options[:dbfile].to_s
+        db = SQLite3::Database.open file
+        db.results_as_hash = true
+        results = db.execute "select Roles. id, Roles.regex, Roles.crud from Roles where Roles.name = ?", role
+        db.close
+        return results
+      end
+
+      def add_email_to_db(email)
+        begin
+          file = settings.wiki_options[:dbfile].to_s
+          db = SQLite3::Database.open file
+          db.execute "insert into Users values(?);", email
+        rescue SQLite3::Exception => e
+          puts "Error adding email #{email}"
+          p e
+        ensure
+          db.close if db
+        end
+      end
+
+      def remove_perms_by_id(id)
+        begin
+          file = settings.wiki_options[:dbfile].to_s
+          db = SQLite3::Database.open file
+          db.execute "delete from Roles where Roles.id = ?", id
+        rescue SQLite3::Exception => e
+          p e
+        ensure
+          db.close if db
+        end
+      end
+
+      def add_perms_to_role(role, regex, crud)
+        begin
+          file = settings.wiki_options[:dbfile].to_s
+          db = SQLite3::Database.open file
+          stm = db.prepare "insert into Roles values (NULL, ?, ?, ?)"
+          stm.bind_params role, regex, crud
+          stm.execute
+        rescue SQLite3::Exception => e
+          @message = "Error adding permissions to role #{role}: #{e.message}"
+        ensure
+          stm.close if stm
+          db.close if db
+        end
+      end
+
+      def delete_user(user)
+        begin
+          file = settings.wiki_options[:dbfile].to_s
+          db = SQLite3::Database.open file
+          stm = db.prepare "delete from Users where email = :user"
+          stm.execute user
+          stm2 = db.prepare "delete from UsersRoles where email = :user"
+          stm2.execute user
+        rescue SQLite3::Exception => e
+          @message = "Error deleting user #{user}: #{e.message}"
+          mustache :error
+        ensure
+          stm.close if stm
+          stm2.close if stm
+          db.close if db
+        end
+      end
+
+      def add_role_to_user(user, role)
+        begin
+          file = settings.wiki_options[:dbfile].to_s
+          db = SQLite3::Database.open file
+          stm = db.prepare "insert into UsersRoles values(?,?)"
+          stm.bind_params user, role
+          stm.execute
+        rescue SQLite3::Exception => e
+          @message = "Error adding role to #{user}: #{e.message}"
+          mustache :error
+        ensure
+          stm.close if stm
+          db.close if db
+        end
+      end
+
+      def remove_role_from_user(user, role)
+        begin
+          file = settings.wiki_options[:dbfile].to_s
+          db = SQLite3::Database.open file
+          stm = db.prepare "delete from UsersRoles where email = ? and role = ?"
+          stm.bind_params user, role
+          stm.execute
+        rescue SQLite3::Exception => e
+          @message = "Error removing role from user #{user}: #{e.message}"
+        ensure
+          stm.close if stm
+          db.close if db
+        end
+      end
+
+      def is_user_admin?(user)
+        begin
+          file = settings.wiki_options[:dbfile].to_s
+          db = SQLite3::Database.open file
+          result = db.execute "select admin from Users where email = ?", user
+          if(result.first.first == 1)
+            return true
+          else
+            return false
+          end
+        rescue SQLite3::Exception => e
+          p e
+        ensure
+          db.close if db
+        end
+      end
+
+      def fetch_comments(page_url_path)
+        begin
+          file = settings.wiki_options[:dbfile].to_s
+          db = SQLite3::Database.open file
+          db.results_as_hash = true
+          results = db.execute "select * from Comments where Comments.page = ?;", page_url_path
+          return results
+        rescue SQLite3::Exception => e
+          p e
+        ensure
+          db.close if db
+        end
+      end
+
+      def add_comment(author, date, content, parent_comment, wikipage, inline, section)
+        begin
+          file = settings.wiki_options[:dbfile].to_s
+          db = SQLite3::Database.open file
+          # TO-DO CHANGE THIS
+          result = db.execute "insert into Comments values(NULL, ?, ?, ?, ?, ?, 0, ?, ?);", author, date, content, parent_comment, wikipage, inline, section
+        rescue SQLite3::Exception => e
+          p e
+        ensure
+          db.close if db
+        end
+      end
+
+      def get_comment_author(id)
+        begin
+          file = settings.wiki_options[:dbfile].to_s
+          db = SQLite3::Database.open file
+          result = db.get_first_row "select author from Comments where id = ?", id
+          return result
+        rescue SQLite3::Exception => e
+          p e
+        ensure
+          db.close if db
+        end
+      end
+
+      def delete_comment(id)
+        begin
+          file = settings.wiki_options[:dbfile].to_s
+          db = SQLite3::Database.open file
+          # db.execute "delete from Comments where id = ?", id
+          db.execute "update Comments set content = \'[This comment was deleted]\', deleted = 1 where id = ?", id
+        rescue SQLite3::Exception => e
+          p e
+        ensure
+          db.close if db
+        end
+      end
+
+      def get_sections_commented(page)
+        begin
+          file = settings.wiki_options[:dbfile].to_s
+          db = SQLite3::Database.open file
+          results = db.execute "select distinct section from Comments where page = ?", page
+          return results
+        rescue SQLite3::Exception => e
+          p e
+        ensure
+          db.close if db
+        end
+      end
+
+      def get_comments_from_page(page)
+        begin
+          file = settings.wiki_options[:dbfile].to_s
+          db = SQLite3::Database.open file
+          results = db.execute "select id from Comments where page = ?", page.url_path
+          comments = results.map {|r| r.first }
+          return comments
+        rescue SQLite3::Exception => e
+          p e
+        ensure
+          db.close if db
+        end
+      end
+
+      def save_comments_from_version(page, comments)
+        begin
+          file = settings.wiki_options[:dbfile].to_s
+          db = SQLite3::Database.open file
+          ids = ""
+          comments.each do |c|
+            ids += "#{c},"
+          end
+          ids = ids[0...-1]
+          stm = db.prepare "insert into CommentsVersions values(?,?,?)"
+          stm.bind_params page.url_path, page.version.to_s, ids
+          stm.execute
+          # db.execute "insert into CommentsVersions values(?,?,?)", page.url_path, page.version, ids
+        rescue SQLite3::Exception => e
+          p e
+        ensure
+          stm.close if stm
+          db.close if db
+        end
+      end
+
+      def get_comments_from_version(page_url, version)
+        begin
+          file = settings.wiki_options[:dbfile].to_s
+          db = SQLite3::Database.open file
+          results = db.execute "select comment_ids from CommentsVersions where pageurl = ? AND version = ?", page_url, version
+          results.map! {|r| r.first }
+          return results
+        rescue SQLite3::Exception => e
+          p e
+        ensure
+          db.close if db
+        end
+      end
+      end
+      end

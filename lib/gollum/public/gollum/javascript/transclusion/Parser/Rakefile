@@ -1,0 +1,17 @@
+require 'parser/current'
+#require 'ruby_parser'
+require 'opal'
+ 
+desc "Build our app to parser.js"
+task :build do
+  Opal::Processor.source_map_enabled = false
+  Opal.append_path File.dirname(__FILE__) + '/Libs/Parser'
+  Opal.append_path File.dirname(__FILE__) + '/Libs/ast'
+  #Opal.append_path File.dirname(__FILE__) + '/Libs/Ruby_parser'
+  env = Opal::Environment.new
+  env.append_path "app"
+
+  File.open("parser.js", "w+") do |out|
+    out << env["application"].to_s
+  end
+end

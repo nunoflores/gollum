@@ -1,0 +1,34 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <meta charset="utf-8">
+    <title>test</title>
+    
+	<script src="../../libs/jquery-2.1.0.min.js"></script>
+	<script src="../../libs/json2.js"></script>
+	<script src="../../libs/jstorage.js"></script>
+	<link href="prism.css" rel="stylesheet" />
+	<script src="../../libs/prism.js" data-manual></script>
+	<script src="beautifier.js"></script>
+
+</head>
+<body>
+
+	<div id="aqui"></div>
+	
+	<script>
+		
+		var configs = {
+			language: 'ruby'
+		};
+		var flags = {
+			showLines : true,
+			lines : 2
+		};
+		code = "def ole2 (a)\n  puts 'ole2'\nend";
+		var beuat = new Beuatifier(configs);
+		beuat.insertCode(code, '#aqui', flags);	
+	</script>
+</body>
+
+</html>
