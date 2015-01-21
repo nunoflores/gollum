@@ -1,0 +1,16 @@
+def ole1
+  puts 'ole1'
+end
+
+def ole2 (a)
+  puts 'ole2'
+end
+
+class Teste
+  def dentroClasse
+    puts 'dentro!'
+  end
+  def dentroClasse2
+    puts 'dentro!'
+  end
+end

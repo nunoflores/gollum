@@ -7,7 +7,7 @@ Mousetrap.bind(['e'], function( e ) {
 </script>
 <div id="wiki-wrapper" class="page">
 <div id="head">
-  <h1>{{page_header}}</h1>
+  <h1>{{page_header}} {{#old_version}}(old version){{/old_version}}</h1>
   <ul class="actions">
     <li class="minibutton">
       {{>searchbar}}
@@ -40,6 +40,7 @@ Mousetrap.bind(['e'], function( e ) {
 </div>
 <div id="wiki-content">
 <div class="{{#has_header}}has-header{{/has_header}}{{#has_footer}} has-footer{{/has_footer}}{{#has_sidebar}} has-sidebar has-{{bar_side}}bar{{/has_sidebar}}{{#has_toc}} has-toc{{/has_toc}}">
+<!-- div class="{{#has_header}}has-header{{/has_header}}{{#has_footer}} has-footer{{/has_footer}} has-sidebar has-rightbar{{#has_toc}} has-toc{{/has_toc}}"-->
   {{#has_toc}}
   <div id="wiki-toc-main">
     {{{toc_content}}}
@@ -52,6 +53,7 @@ Mousetrap.bind(['e'], function( e ) {
     </div>
   </div>
   {{/has_sidebar}}
+  <div id="body-comment-wrapper">
   <div id="wiki-body" class="gollum-{{format}}-content">
     {{#has_header}}
     <div id="wiki-header" class="gollum-{{header_format}}-content">
@@ -64,6 +66,12 @@ Mousetrap.bind(['e'], function( e ) {
       {{{content}}}
     </div>
   </div>
+  <div id="comments-sidebar" style="float: left; width:15%;">
+    Comments sidebar<br />
+    <!--span id="inline_comment">Inline Comment</span-->
+    {{{show_sidebar_comments}}}
+  </div>
+</div>
   {{#has_footer}}
   <div id="wiki-footer" class="gollum-{{footer_format}}-content">
     <div id="footer-content" class="markdown-body">
@@ -74,6 +82,17 @@ Mousetrap.bind(['e'], function( e ) {
   </div>
 
 </div>
+<a name="comment-section"></a>
+{{^old_version}}
+<div id="insert-comment" style="clear: both; border-top: 1px solid #ddd;">
+  <form style="margin-top: 1em;" name="insert-comment" method="POST" action="{{base_url}}/insert_comment">
+    <textarea name="comment_textarea" cols="40" rows="5"></textarea><br>
+    <input type="hidden" name="page_url" value="{{page_url_path}}">
+    <input type="submit" value="Post comment">
+  </form>
+</div>
+{{/old_version}}
+{{{show_comments}}}
 <div id="footer">
   <p id="last-edit">Last edited by <b>{{author}}</b>, {{date}}</p>
   <p>

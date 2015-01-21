@@ -44,6 +44,10 @@ module Precious
          @user.name
       end
 
+      def user_avatar
+        @user.avatar_url
+      end
+
     end
   end
 end

@@ -1,0 +1,31 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <meta charset="utf-8">
+    <title>test</title>
+    
+</head>
+<body>
+	<textarea></textarea>
+	
+	<script src="../../libs/jquery-2.1.0.min.js"></script>
+	<script src="../../libs/underscore-min.js"></script>
+	<script src="gh3.js"></script>
+	<script src="git-hub-access.js"></script>
+	<script>
+		var configs = {
+			user : 'diocas',
+			repository : 'RubyFunctionGetter',
+			branch : 'master'
+		};
+		
+		var github = new GitHubAccess(configs);
+		
+		github.getFile('GitHubAccess/application.js', 1, function (content){
+			$("textarea").text(content);
+		});
+	</script>
+
+</body>
+
+</html>

@@ -1,0 +1,31 @@
+<!DOCTYPE html>
+<html>
+  <head>
+    <script src="../../libs/jquery-2.1.0.min.js"></script>
+    <script src="../../libs/jquery-migrate-1.2.1.js"></script>
+    <script src="../../libs/opal.min.js"></script>
+    <script src="../../libs/opal-parser.min.js"></script>
+    <script src="parser.js"></script>
+  </head>
+  <body>
+  	
+  	<form action="http://localhost:4567/" method="post">
+  		
+  		<p>Code:</p>
+  		<p><textarea rows="4" cols="50" name="code">
+def ole1
+  puts 'ole1'
+end
+def ole2 (a)
+  puts 'ole2'
+end
+		</textarea></p>
+  		
+  		<p>Method:</p>
+  		<p><input type="text" name="method" value="ole2"></p>
+  		
+  		<p><input type="submit" value="Submit"></p>
+  	</form>
+  	
+  </body>
+</html>

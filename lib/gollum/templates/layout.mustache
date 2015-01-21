@@ -7,6 +7,7 @@
   <link rel="stylesheet" type="text/css" href="{{base_url}}/css/dialog.css" media="all">
   <link rel="stylesheet" type="text/css" href="{{base_url}}/css/template.css" media="all">
   <link rel="stylesheet" type="text/css" href="{{base_url}}/css/print.css" media="print">
+  <link rel="stylesheet" type="text/css" href="{{base_url}}/css/prism.css" media="all">
   {{#css}}<link rel="stylesheet" type="text/css" href="{{base_url}}/custom.css" media="all">{{/css}}
   {{#noindex}}<meta name="robots" content="noindex, nofollow" />{{/noindex}}
 
@@ -27,6 +28,27 @@
   <script type="text/javascript" src="{{base_url}}/javascript/gollum.dialog.js"></script>
   <script type="text/javascript" src="{{base_url}}/javascript/gollum.placeholder.js"></script>
   <script type="text/javascript" src="{{base_url}}/javascript/editor/gollum.editor.js"></script>
+  <script type="text/javascript" src="{{base_url}}/javascript/weaki.js"></script>
+
+  <script type="text/javascript" src="{{base_url}}/javascript/transclusion/libs/underscore-min.js"></script>
+  <script type="text/javascript" src="{{base_url}}/javascript/transclusion/libs/json2.js"></script>
+  <script type="text/javascript" src="{{base_url}}/javascript/transclusion/libs/jstorage.js"></script>
+  <script type="text/javascript" src="{{base_url}}/javascript/transclusion/libs/prism.js" data-manual></script>
+  <script type="text/javascript" src="{{base_url}}/javascript/transclusion/Beautifier/beautifier.js"></script>
+  <script type="text/javascript" src="{{base_url}}/javascript/transclusion/GitHubAccess/gh3.js"></script>
+  <script type="text/javascript" src="{{base_url}}/javascript/transclusion/GitHubAccess/git-hub-access.js"></script>
+  <script type="text/javascript" src="{{base_url}}/javascript/transclusion/Parser/parser-server.js"></script>
+  <script type="text/javascript" src="{{base_url}}/javascript/transclusion/RubyFunctionGetter.js"></script>
+
+  <script>
+  var config = {
+    user: 'diocas',
+    repository: 'RubyFunctionGetter',
+    branch: 'master'
+  };
+  var getter = new RubyFunctionGetter(config);
+  getter.gettify();
+  </script>
   {{#use_identicon}}
   <script type="text/javascript" src="{{base_url}}/javascript/identicon_canvas.js"></script>
   {{/use_identicon}}
@@ -50,6 +72,21 @@
 
   <title>{{title}}</title>
 </head>
+<script type="text/javascript">
+function surroundSelection() {
+  var span = document.createElement("span");
+  span.style.background="#ffb7b7";
+    if (window.getSelection) {
+        var sel = window.getSelection();
+        if (sel.rangeCount) {
+            var range = sel.getRangeAt(0).cloneRange();
+            range.surroundContents(span);
+            sel.removeAllRanges();
+            sel.addRange(range);
+        }
+    }
+}
+</script>
 <body>
 {{< user}}
 
