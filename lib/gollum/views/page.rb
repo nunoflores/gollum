@@ -1,3 +1,5 @@
+require 'open-uri'
+require 'json'
 module Precious
   module Views
     class Page < Layout
@@ -230,9 +232,19 @@ module Precious
         @frag = Nokogiri::HTML::DocumentFragment.parse ""
         sorted_comments = @comments.sort {|a,b| DateTime.strptime(a[2],"%d/%m/%Y %H:%M") <=> DateTime.strptime(b[2],"%d/%m/%Y %H:%M")}
         sorted_comments.reverse!
+
+        # --------------------------
+        # Display de avatars hardcoded temporariamente
+        avatars = Hash.new
+        avatars['nmlpsousa'] = "https://avatars.githubusercontent.com/u/1554191?v=3"
+        avatars['nunoflores'] = "https://avatars.githubusercontent.com/u/598998?v=3"
+        avatars['jmapsimoes'] = "https://avatars.githubusercontent.com/u/9195015?v=3"
+        avatars['ribadmilo'] = "https://avatars.githubusercontent.com/u/1673931?v=3"
+        # --------------------------
+
         Nokogiri::HTML::Builder.with(@frag) do |doc|
           @sections.each{|section|
-            doc.div(:id => section, :class => "section-comment-area"){
+            doc.div(:id => section, :class => "section-comment-area", :style => "background-color: \#ffffff;"){
               doc.a(:role => "button", :onclick => "show_section_comments(\"#{section}\");"){doc.text "Show"}
               doc.br
               doc.div(:id => "section-#{section}-comments", :class => "section-comments-content", :section => section, :style => "display: none;"){
@@ -259,44 +271,170 @@ module Precious
                     }
                     replies.sort! {|a,b| DateTime.strptime(a[2],"%d/%m/%Y %H:%M") <=> DateTime.strptime(b[2],"%d/%m/%Y %H:%M")}
                     replies.reverse!
-                    doc.div(:id => "#{c['id']}", :class => "inline-comment"){
-                      doc.strong c['author']
-                      doc.text " - "+c['date']
-                      doc.br
-                      c['content'].each_line do |line|
-                        doc.text line
-                        doc.br
-                      end
-                      if(c['deleted'] != 1 && !@old_version)
-                        doc.form(:id => "reply-form-#{id}", :method => "POST", :name => "reply-comment", :action => "/insert_comment", :style => "display: none;") {
-                          doc.textarea(:name => "comment_textarea", :cols => "40", :rows => "5")
-                          doc.br
-                          doc.input(:type => "hidden", :name => "parent_id", :value => id)
-                          doc.input(:type => "hidden", :name => "inline", :value => 1)
-                          doc.input(:type => "hidden", :name => "section", :value => section)
-                          doc.input(:type => "hidden", :name => "page_url", :value => page_url_path)
-                          doc.input(:type => "submit", :value => "Add reply")
+                    doc.table(:border => 0, :cellpadding => 0, :width => "400px"){
+                      doc.tr{
+                        doc.td(:rowspan => "5", :class => "comment_avatar_cell"){
+                          doc.div(:align => "center"){
+                            if (avatars.has_key? c['author'])
+                              avatar = avatars[c['author']]
+                            else
+                              avatar = "http://brandonmathis.com/projects/fancy-avatars/demo/images/avatar_male_dark_on_clear_200x200.png"
+                            end
+                            doc.div(:class => "comment_avatar", :style => "background: url("+avatar+"); background-size: 30px 30px; background-repeat: no-repeat;")
+                            # doc.div(:class => "comment_avatar")
+                          }
                         }
-                        doc.a(:role => "button", :onclick => "$(\"#reply-form-#{id}\").toggle(250);", :style => "font-size:80%;") {doc.text "Reply" }
-                        if(c['author'] == @session_username || @is_admin)
-                          doc.text " | "
-                          doc.a(:class => "delete-comment", :href => "#{base_url}/#{escaped_url_path}", :delete_comment => "Are you sure you want to delete this comment?", :comment_id => id, :style => "font-size:80%;"){ doc.text "Delete" }
-                        end
-                      end
-                      doc.div(:id => "replies-#{id}", :style => "margin-left:2em;"){
-                        replies.each {|reply|
-                          doc.strong "Author: "
-                          doc.text reply['author']+' - '
-                          doc.strong "Date: "
-                          doc.text reply['date']
-                          doc.br
-                          reply['content'].each_line do |line|
-                            doc.text line
-                            doc.br
+                        doc.td(:class => "cell_middle"){
+                          doc.div(:class => "comment_username"){
+                            doc.text c['author']
+                          }
+                          doc.div(:class => "trash_button"){
+                            doc.a(:class => "delete-comment", :href => "#{base_url}/#{escaped_url_path}", :delete_comment => "Are you sure you want to delete this comment?", :comment_id => id){
+                              doc.img(:src => "http://iconizer.net/files/Devine_icons/orig/Trash-Recyclebin-Empty-Closed.png", :width => "20px", :height => "20px")
+                            }
+                          }
+                        }
+                      }
+
+                      doc.tr{
+                        doc.td(:height => "100%"){
+                          doc.div(:class => "comment_content"){
+                            c['content'].each_line do |line|
+                              doc.text line
+                              doc.br
+                            end
+                          }
+                          doc.div(:class => "date"){
+                            # doc.text c['date']
+                            date = DateTime.strptime(c['date'],"%d/%m/%Y %H:%M")
+                            doc.text date.strftime("%b %-d, %Y %H:%M")
+                          }
+                        }
+                      }
+
+                      doc.tr{
+                        doc.td(:style => "vertical-align: bottom;"){
+                          doc.div(:class => "reply_toggle"){
+                            doc.a(:class => "toggler", :id => "show-button_#{id}", :role => "button", :onclick => "$(\"#replies-#{id}\").toggle(250);"){
+                              reply_count = replies.size
+                              doc.text "Show replies (#{reply_count})"
+                            }
+                          }
+                        }
+                      }
+
+                      doc.tr{
+                        doc.td(:class => "replies_cell"){
+                          doc.div(:id => "replies-#{id}", :style => "display: none;"){
+                            replies.each do |reply|
+
+                              # github_json_reply = JSON.load(open("https://api.github.com/users/"+reply['author']+"?access_token=3b936c639cd984592568c3b7fe6287410137c221"))
+                              # avatar_url = github_json_reply['avatar_url']
+
+                              doc.table(:border => "0", :cellpadding => "0", :cellspacing => "0"){
+                                doc.tr{
+                                  doc.td(:rowspan => "3", :class => "reply_avatar_cell"){
+                                    doc.div(:align => "center"){
+                                      if (avatars.has_key? reply['author'])
+                                        avatar = avatars[reply['author']]
+                                      else
+                                        avatar = "http://brandonmathis.com/projects/fancy-avatars/demo/images/avatar_male_dark_on_clear_200x200.png"
+                                      end
+                                      doc.div(:class => "reply_avatar", :style => "background: url("+avatar+"); background-size: 30px 30px; background-repeat: no-repeat;")
+                                      # doc.div(:class => "reply_avatar")
+                                    }
+                                  }
+                                }
+                                doc.tr{
+                                  doc.td(:class => "cell_middle"){
+                                    doc.div(:align => "center"){
+                                      doc.div(:class => "reply_username"){
+                                        doc.text reply['author']
+                                      }
+                                    }
+                                  }
+                                }
+                                doc.tr{
+                                  doc.td(:width => "100%"){
+                                    doc.div(:class => "reply_content"){
+                                      reply['content'].each_line do |line|
+                                        doc.text line
+                                        doc.br
+                                      end
+                                    }
+                                    doc.div(:class => "date"){
+                                      date = DateTime.strptime(c['date'],"%d/%m/%Y %H:%M")
+                                      doc.text date.strftime("%b %-d, %Y %H:%M")
+                                    }
+                                  }
+                                }
+                              }
+                            end
+                          }
+                        }
+                      }
+
+
+                      doc.tr{
+                        doc.td(:width => "100%"){
+                          if(c['deleted'] != 1 && !@old_version)
+                            doc.form(:id => "reply-form-#{id}", :class => "comment-reply-form", :method => "POST", :name => "reply-comment", :action => "/insert_comment", :style => "display: none;"){
+                              doc.textarea(:class => "comment_textarea", :name => "comment_textarea", :rows => "5")
+                              doc.br
+                              doc.input(:type => "hidden", :name => "parent_id", :value => id)
+                              doc.input(:type => "hidden", :name => "page_url", :value => page_url_path)
+                              doc.input(:type => "hidden", :name => "inline", :value => 1)
+                              doc.input(:type => "hidden", :name => "section", :value => section)
+                              doc.input(:type => "submit", :value => "Add reply")
+                            }
+                            doc.div(:class => "reply"){
+                              doc.a(:role => "button", :onclick => "$(\"#reply-form-#{id}\").toggle(250);", :style => "color: \#00aa00;"){
+                                doc.text "Reply to this comment"
+                              }
+                            }
                           end
                         }
                       }
                     }
+
+                    # doc.div(:id => "#{c['id']}", :class => "inline-comment"){
+                    #   doc.strong c['author']
+                    #   doc.text " - "+c['date']
+                    #   doc.br
+                    #   c['content'].each_line do |line|
+                    #     doc.text line
+                    #     doc.br
+                    #   end
+                    #   if(c['deleted'] != 1 && !@old_version)
+                    #     doc.form(:id => "reply-form-#{id}", :method => "POST", :name => "reply-comment", :action => "/insert_comment", :style => "display: none;") {
+                    #       doc.textarea(:name => "comment_textarea", :cols => "40", :rows => "5")
+                    #       doc.br
+                    #       doc.input(:type => "hidden", :name => "parent_id", :value => id)
+                    #       doc.input(:type => "hidden", :name => "inline", :value => 1)
+                    #       doc.input(:type => "hidden", :name => "section", :value => section)
+                    #       doc.input(:type => "hidden", :name => "page_url", :value => page_url_path)
+                    #       doc.input(:type => "submit", :value => "Add reply")
+                    #     }
+                    #     doc.a(:role => "button", :onclick => "$(\"#reply-form-#{id}\").toggle(250);", :style => "font-size:80%;") {doc.text "Reply" }
+                    #     if(c['author'] == @session_username || @is_admin)
+                    #       doc.text " | "
+                    #       doc.a(:class => "delete-comment", :href => "#{base_url}/#{escaped_url_path}", :delete_comment => "Are you sure you want to delete this comment?", :comment_id => id, :style => "font-size:80%;"){ doc.text "Delete" }
+                    #     end
+                    #   end
+                    #   doc.div(:id => "replies-#{id}", :style => "margin-left:2em;"){
+                    #     replies.each {|reply|
+                    #       doc.strong "Author: "
+                    #       doc.text reply['author']+' - '
+                    #       doc.strong "Date: "
+                    #       doc.text reply['date']
+                    #       doc.br
+                    #       reply['content'].each_line do |line|
+                    #         doc.text line
+                    #         doc.br
+                    #       end
+                    #     }
+                    #   }
+                    # }
                   end
                 }
               }
@@ -311,6 +449,16 @@ module Precious
         # Here we sort the comments, newest comments first
         sorted_comments = @comments.sort {|a,b| DateTime.strptime(a[2],"%d/%m/%Y %H:%M") <=> DateTime.strptime(b[2],"%d/%m/%Y %H:%M")}
         sorted_comments.reverse!
+
+        # --------------------------
+        # Display de avatars hardcoded temporariamente
+        avatars = Hash.new
+        avatars['nmlpsousa'] = "https://avatars.githubusercontent.com/u/1554191?v=3"
+        avatars['nunoflores'] = "https://avatars.githubusercontent.com/u/598998?v=3"
+        avatars['jmapsimoes'] = "https://avatars.githubusercontent.com/u/9195015?v=3"
+        avatars['ribadmilo'] = "https://avatars.githubusercontent.com/u/1673931?v=3"
+        # --------------------------
+
         # We build the div section with the comments for this page
         Nokogiri::HTML::Builder.with(@docfrag) do |doc|
           doc.div(:id => "wiki-comments", :style => "clear: both; border-top: 1px solid #ddd; margin: 1em 0 7em;") {
@@ -327,46 +475,175 @@ module Precious
                     }
                     replies.sort! {|a,b| DateTime.strptime(a[2],"%d/%m/%Y %H:%M") <=> DateTime.strptime(b[2],"%d/%m/%Y %H:%M")}
                     replies.reverse!
-                    doc.strong "Author: "
-                    doc.text c['author']+" - "
-                    doc.strong "Date: "
-                    doc.text c['date']+" "
-                    doc.a(:id => "show-button_#{id}", :role => "button", :onclick => "$(\"#replies-#{id}\").toggle(250);", :style => "font-size:80%;") {doc.text "Show/Hide replies"}
-                    doc.br
-                    c['content'].each_line do |line|
-                      doc.text line
-                      doc.br
-                    end
-                    if(c['deleted'] != 1 && !@old_version)
-                      doc.div(:class => "comment-reply-div"){
-                        doc.form(:id => "reply-form-#{id}", :class => "comment-reply-form", :method => "POST", :name => "reply-comment", :action => "/insert_comment", :style => "display: none;") {
-                          doc.textarea(:name => "comment_textarea", :cols => "40", :rows => "5")
-                          doc.br
-                          doc.input(:type => "hidden", :name => "parent_id", :value => id)
-                          doc.input(:type => "hidden", :name => "page_url", :value => page_url_path)
-                          doc.input(:type => "submit", :value => "Add reply")
+
+                    # github_json = JSON.load(open("https://api.github.com/users/"+c['author']+"?access_token=3b936c639cd984592568c3b7fe6287410137c221"))
+                    # avatar_url = github_json['avatar_url']
+
+                    doc.table(:border => 0, :cellpadding => 0, :width => "400px"){
+                      doc.tr{
+                        doc.td(:rowspan => "5", :class => "comment_avatar_cell"){
+                          doc.div(:align => "center"){
+                            if (avatars.has_key? c['author'])
+                              avatar = avatars[c['author']]
+                            else
+                              avatar = "http://brandonmathis.com/projects/fancy-avatars/demo/images/avatar_male_dark_on_clear_200x200.png"
+                            end
+                            doc.div(:class => "comment_avatar", :style => "background: url("+avatar+"); background-size: 30px 30px; background-repeat: no-repeat;")
+                            # doc.div(:class => "comment_avatar")
+                          }
+                        }
+                        doc.td(:class => "cell_middle"){
+                          doc.div(:class => "comment_username"){
+                            doc.text c['author']
+                          }
+                          doc.div(:class => "trash_button"){
+                            doc.a(:class => "delete-comment", :href => "#{base_url}/#{escaped_url_path}", :delete_comment => "Are you sure you want to delete this comment?", :comment_id => id){
+                              doc.img(:src => "http://iconizer.net/files/Devine_icons/orig/Trash-Recyclebin-Empty-Closed.png", :width => "20px", :height => "20px")
+                            }
+                          }
                         }
                       }
-                      doc.a(:role => "button", :onclick => "$(\"#reply-form-#{id}\").toggle(250);", :style => "font-size:80%;") {doc.text "Reply" }
-                      if(c['author'] == @session_username || @is_admin)
-                        doc.text " | "
-                        doc.a(:class => "delete-comment", :href => "#{base_url}/#{escaped_url_path}", :delete_comment => "Are you sure you want to delete this comment?", :comment_id => id, :style => "font-size:80%;"){ doc.text "Delete" }
-                      end
-                    end
-                    doc.br
-                    doc.div(:id => "replies-#{id}", :style => "margin-left:2em;"){
-                      replies.each {|reply|
-                        doc.strong "Author: "
-                        doc.text reply['author']+' - '
-                        doc.strong "Date: "
-                        doc.text reply['date']
-                        doc.br
-                        reply['content'].each_line do |line|
-                          doc.text line
-                          doc.br
-                        end
+
+                      doc.tr{
+                        doc.td(:height => "100%"){
+                          doc.div(:class => "comment_content"){
+                            c['content'].each_line do |line|
+                              doc.text line
+                              doc.br
+                            end
+                          }
+                          doc.div(:class => "date"){
+                            # doc.text c['date']
+                            date = DateTime.strptime(c['date'],"%d/%m/%Y %H:%M")
+                            doc.text date.strftime("%b %-d, %Y %H:%M")
+                          }
+                        }
+                      }
+
+                      doc.tr{
+                        doc.td(:style => "vertical-align: bottom;"){
+                          doc.div(:class => "reply_toggle"){
+                            doc.a(:class => "toggler", :id => "show-button_#{id}", :role => "button", :onclick => "$(\"#replies-#{id}\").toggle(250);"){
+                              reply_count = replies.size
+                              doc.text "Show replies (#{reply_count})"
+                            }
+                          }
+                        }
+                      }
+
+                      doc.tr{
+                        doc.td(:class => "replies_cell"){
+                          doc.div(:id => "replies-#{id}", :style => "display: none;"){
+                            replies.each do |reply|
+
+                              # github_json_reply = JSON.load(open("https://api.github.com/users/"+reply['author']+"?access_token=3b936c639cd984592568c3b7fe6287410137c221"))
+                              # avatar_url = github_json_reply['avatar_url']
+
+                              doc.table(:border => "0", :cellpadding => "0", :cellspacing => "0"){
+                                doc.tr{
+                                  doc.td(:rowspan => "3", :class => "reply_avatar_cell"){
+                                    doc.div(:align => "center"){
+                                      if (avatars.has_key? reply['author'])
+                                        avatar = avatars[reply['author']]
+                                      else
+                                        avatar = "http://brandonmathis.com/projects/fancy-avatars/demo/images/avatar_male_dark_on_clear_200x200.png"
+                                      end
+                                      doc.div(:class => "reply_avatar", :style => "background: url("+avatar+"); background-size: 30px 30px; background-repeat: no-repeat;")
+                                      # doc.div(:class => "reply_avatar")
+                                    }
+                                  }
+                                }
+                                doc.tr{
+                                  doc.td(:class => "cell_middle"){
+                                    doc.div(:align => "center"){
+                                      doc.div(:class => "reply_username"){
+                                        doc.text reply['author']
+                                      }
+                                    }
+                                  }
+                                }
+                                doc.tr{
+                                  doc.td(:width => "100%"){
+                                    doc.div(:class => "reply_content"){
+                                      reply['content'].each_line do |line|
+                                        doc.text line
+                                        doc.br
+                                      end
+                                    }
+                                    doc.div(:class => "date"){
+                                      date = DateTime.strptime(c['date'],"%d/%m/%Y %H:%M")
+                                      doc.text date.strftime("%b %-d, %Y %H:%M")
+                                    }
+                                  }
+                                }
+                              }
+                            end
+                          }
+                        }
+                      }
+
+
+                      doc.tr{
+                        doc.td(:width => "100%"){
+                          if(c['deleted'] != 1 && !@old_version)
+                            doc.form(:id => "reply-form-#{id}", :class => "comment-reply-form", :method => "POST", :name => "reply-comment", :action => "/insert_comment", :style => "display: none;"){
+                              doc.textarea(:class => "comment_textarea", :name => "comment_textarea", :rows => "5")
+                              doc.br
+                              doc.input(:type => "hidden", :name => "parent_id", :value => id)
+                              doc.input(:type => "hidden", :name => "page_url", :value => page_url_path)
+                              doc.input(:type => "submit", :value => "Add reply")
+                            }
+                            doc.div(:class => "reply"){
+                              doc.a(:role => "button", :onclick => "$(\"#reply-form-#{id}\").toggle(250);", :style => "color: \#00aa00;"){
+                                doc.text "Reply to this comment"
+                              }
+                            }
+                          end
+                        }
                       }
                     }
+
+                    # doc.strong "Author: "
+                    # doc.text c['author']+" - "
+                    # doc.strong "Date: "
+                    # doc.text c['date']+" "
+                    # doc.a(:id => "show-button_#{id}", :role => "button", :onclick => "$(\"#replies-#{id}\").toggle(250);", :style => "font-size:80%;") {doc.text "Show/Hide replies"}
+                    # doc.br
+                    # c['content'].each_line do |line|
+                    #   doc.text line
+                    #   doc.br
+                    # end
+
+                    # if(c['deleted'] != 1 && !@old_version)
+                    #   doc.div(:class => "comment-reply-div"){
+                    #     doc.form(:id => "reply-form-#{id}", :class => "comment-reply-form", :method => "POST", :name => "reply-comment", :action => "/insert_comment", :style => "display: none;") {
+                    #       doc.textarea(:name => "comment_textarea", :cols => "40", :rows => "5")
+                    #       doc.br
+                    #       doc.input(:type => "hidden", :name => "parent_id", :value => id)
+                    #       doc.input(:type => "hidden", :name => "page_url", :value => page_url_path)
+                    #       doc.input(:type => "submit", :value => "Add reply")
+                    #     }
+                    #   }
+                    #   doc.a(:role => "button", :onclick => "$(\"#reply-form-#{id}\").toggle(250);", :style => "font-size:80%;") {doc.text "Reply" }
+                    #   if(c['author'] == @session_username || @is_admin)
+                    #     doc.text " | "
+                    #     doc.a(:class => "delete-comment", :href => "#{base_url}/#{escaped_url_path}", :delete_comment => "Are you sure you want to delete this comment?", :comment_id => id, :style => "font-size:80%;"){ doc.text "Delete" }
+                    #   end
+                    # end
+                    # doc.br
+                    # doc.div(:id => "replies-#{id}", :style => "margin-left:2em;"){
+                    #   replies.each {|reply|
+                    #     doc.strong "Author: "
+                    #     doc.text reply['author']+' - '
+                    #     doc.strong "Date: "
+                    #     doc.text reply['date']
+                    #     doc.br
+                    #     reply['content'].each_line do |line|
+                    #       doc.text line
+                    #       doc.br
+                    #     end
+                    #   }
+                    # }
                   end
                 }
               end
