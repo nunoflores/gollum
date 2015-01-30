@@ -476,13 +476,6 @@ module Precious
                     replies.sort! {|a,b| DateTime.strptime(a[2],"%d/%m/%Y %H:%M") <=> DateTime.strptime(b[2],"%d/%m/%Y %H:%M")}
                     replies.reverse!
 
-                    # --------------------------
-                    # Display de avatars hardcoded temporariamente
-                    avatars = Hash.new
-                    avatars['nmlpsousa'] = "https://avatars.githubusercontent.com/u/1554191?v=3"
-                    avatars['nunoflores'] = "https://avatars.githubusercontent.com/u/598998?v=3"
-                    # --------------------------
-
                     # github_json = JSON.load(open("https://api.github.com/users/"+c['author']+"?access_token=3b936c639cd984592568c3b7fe6287410137c221"))
                     # avatar_url = github_json['avatar_url']
 
