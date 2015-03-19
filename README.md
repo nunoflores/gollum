@@ -58,7 +58,7 @@ run Precious::App
 
 ### Initializing the database
 You'll need to define a GitHub username as an admin, so you can enter the Weaki for the first time and manage it  
-* Download the following [file](https://gist.github.com/nmlpsousa/fcc384666ee7cb5d2663/download) and make it executable -- `chmod +x createdb.rb`  
+* Download the following [file](https://gist.github.com/nmlpsousa/194d859046752008442b) and make it executable -- `chmod +x createdb.rb`  
 * Place it in the _gollum_ folder
 * Execute the file -- `./createdb.rb <username>` -- replacing **<username>** with your GitHub username. This will create an empty database with the given username as an admin.  
 
