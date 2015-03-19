@@ -1,3 +1,69 @@
+## How-to Install
+
+**TO-DO descriçao de cada comando**  
+**Branch development em _gollum_ e _omnigollum_ temporariamente**  
+
+###Create the directory where our weaki will be stored  
+* `mkdir weaki`  
+* `cd weaki`  
+
+###Cloning the necessary repo's to our *weaki* folder  
+* `git clone https://github.com/nmlpsousa/gollum.git`  
+* `git clone https://github.com/nmlpsousa/gollum-lib.git`  
+* `git clone https://github.com/nmlpsousa/omnigollum.git`  
+
+###Temporary step: switching to development branch in _gollum_ and _omnigollum_  
+* `cd gollum`  
+* `git checkout development`  
+* `cd ../omnigollum`  
+* `git checkout development`  
+* `cd ..`  
+
+###Creating and initializing an empty git repo which will contain the weaki's contents  
+* `mkdir weaki-content`  
+* `cd weaki-content`  
+* `git init`  
+
+###Creating *config.ru* in order to run the server  
+* Create a file named `config.ru` in the _weaki-content_ folder with the following contents
+```ruby
+require 'rubygems'
+
+require 'gollum/app'
+require 'omnigollum'
+require 'omniauth/strategies/github'
+
+options = {
+  :providers => Proc.new do
+    provider :github, 'Client_ID', 'Client_Secret'
+  end,
+  :dummy_auth => false,
+  :roles => {},
+  :authorized_users => {},
+}
+
+Precious::App.set(:omnigollum, options)
+Precious::App.set(:gollum_path, File.dirname(__FILE__))
+Precious::App.set(:wiki_options, {:allow_uploads => true, :show_all => true, :universal_toc => true, :dbfile => "database.db"})
+Precious::App.register Omnigollum::Sinatra
+run Precious::App
+
+```  
+* In order to get a Client ID and a Client Secret, you'll need to create an Application key in GitHub and paste those values in the *config.ru* file  
+  * When creating an application in GitHub make sure the __Homepage URL__ field is the server URL _(e.g. http://weaki.movercado.org)_, and the **Authorization callback URL** has `/__omnigollum__/auth/github/callback` appended *(e.g. http://weaki.movercado.org/__omnigollum__/auth/github/callback)*  
+
+### Initializing the database
+You'll need to define a GitHub username as an admin, so you can enter the Weaki for the first time and manage it  
+* Download the following [file](https://gist.github.com/nmlpsousa/fcc384666ee7cb5d2663/download) and make it executable -- `chmod +x createdb.rb`  
+* Place it in the _gollum_ folder
+* Execute the file -- `./createdb.rb <username>` -- replacing **<username>** with your GitHub username. This will create an empty database with the given username as an admin.  
+
+### Starting the server
+Enter the _gollum_ directory, and run the following commands. These will install the required gem bundle and start the server on the desired port.  
+* `bundle install`
+* `bundle exec rackup -p <PORT> ../weaki-content/config.ru` (if the port is 80, the command must be run as root user)
+
+
 gollum -- A wiki built on top of Git
 ====================================
 
