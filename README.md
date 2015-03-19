@@ -1,3 +1,7 @@
+### Link para politica de branching
+
+http://nvie.com/posts/a-successful-git-branching-model/
+
 ## How-to Install
 
 **TO-DO descriçao de cada comando**  
